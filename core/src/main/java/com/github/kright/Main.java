@@ -24,8 +24,8 @@ import java.util.ArrayList;
  */
 public class Main extends ApplicationAdapter {
 
-    private static final int objectsX = 10;
-    private static final int objectsZ = 10;
+    private static final int objectsX = 20;
+    private static final int objectsZ = 20;
 
     private SpriteBatch batch;
     private Texture image;
@@ -49,12 +49,12 @@ public class Main extends ApplicationAdapter {
 
         // Set up camera
         camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        float cameraDist = Math.max(objectsX, objectsX) * 1.5f;
+        float cameraDist = Math.max(objectsX, objectsX) * 1.8f;
         Vector3 cameraPos = new Vector3(5f, 5f, 2f).setLength(cameraDist);
         camera.position.set(cameraPos);
         camera.lookAt(0, 0, 0);
-        camera.near = 0.1f;
-        camera.far = 100f;
+        camera.near = 1f;
+        camera.far = 200f;
         camera.update();
 
         // Set up lighting environment
