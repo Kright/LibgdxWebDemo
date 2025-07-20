@@ -15,6 +15,7 @@ import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
+import ktx.graphics.use
 import kotlin.math.max
 
 class KotlinApplicationAdapter : ApplicationAdapter() {
@@ -104,34 +105,33 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
         }
 
         // Render the G-buffer texture to the screen
-        batch.begin()
-        batch.draw(
-            gBuffer.colorTexture,
-            Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
-            Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
-            0, 0,
-            gBuffer.colorTexture.width, gBuffer.colorTexture.height,
-            false, true // Flip vertically because FrameBuffer textures are Y-flipped
-        )
+        batch.use {
+            batch.draw(
+                gBuffer.colorTexture,
+                Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
+                Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
+                0, 0,
+                gBuffer.colorTexture.width, gBuffer.colorTexture.height,
+                false, true // Flip vertically because FrameBuffer textures are Y-flipped
+            )
 
-        // Step 3: Render 2D UI elements directly to the screen
-        batch.draw(image, 140f, 210f)
+            // Step 3: Render 2D UI elements directly to the screen
+            batch.draw(image, 140f, 210f)
 
-        // Display FPS counter in the top left corner
-        font.draw(
-            batch,
-            "FPS: ${Gdx.graphics.getFramesPerSecond()}",
-            10f,
-            Gdx.graphics.getHeight() - font.getLineHeight()
-        )
-        font.draw(
-            batch,
-            "triangles count: ${16128 * objectsX * objectsZ}",
-            10f,
-            Gdx.graphics.getHeight() - font.getLineHeight() * 2
-        )
-
-        batch.end()
+            // Display FPS counter in the top left corner
+            font.draw(
+                batch,
+                "FPS: ${Gdx.graphics.getFramesPerSecond()}",
+                10f,
+                Gdx.graphics.getHeight() - font.getLineHeight()
+            )
+            font.draw(
+                batch,
+                "triangles count: ${16128 * objectsX * objectsZ}",
+                10f,
+                Gdx.graphics.getHeight() - font.getLineHeight() * 2
+            )
+        }
     }
 
     override fun resize(width: Int, height: Int) {
