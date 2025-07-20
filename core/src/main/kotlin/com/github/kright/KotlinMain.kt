@@ -2,18 +2,17 @@ package com.github.kright
 
 import com.badlogic.gdx.ApplicationAdapter
 import com.badlogic.gdx.Gdx
+import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.PerspectiveCamera
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
-import com.badlogic.gdx.graphics.g3d.Environment
-import com.badlogic.gdx.graphics.g3d.Model
-import com.badlogic.gdx.graphics.g3d.ModelBatch
-import com.badlogic.gdx.graphics.g3d.ModelInstance
+import com.badlogic.gdx.graphics.g3d.*
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
+import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
 import kotlin.math.max
@@ -26,12 +25,14 @@ class KotlinMain : ApplicationAdapter() {
     // 3D rendering components
     private lateinit var camera: PerspectiveCamera
     private var modelBatch: ModelBatch? = null
+    private var gBufferModelBatch: ModelBatch? = null
     private var model: Model? = null
     private var environment: Environment? = null
     private val instances = ArrayList<ModelInstance>()
 
     // G-buffer for offscreen rendering
     private var gBuffer: GBuffer? = null
+    private val fixedColorShader: FixedColorShader by lazy { FixedColorShader(ShaderCode.load("fixedColor")) }
 
     override fun create() {
         batch = SpriteBatch()
@@ -40,6 +41,17 @@ class KotlinMain : ApplicationAdapter() {
 
         // Initialize 3D components
         modelBatch = ModelBatch()
+
+
+        // Create a custom ShaderProvider for the GBuffer rendering
+        val fixedColorShaderProvider = object : ShaderProvider {
+            override fun getShader(renderable: Renderable): Shader {
+                return fixedColorShader
+            }
+
+            override fun dispose() {}
+        }
+        gBufferModelBatch = ModelBatch(fixedColorShaderProvider)
 
         // Initialize G-buffer for offscreen rendering
         gBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height)
@@ -72,15 +84,18 @@ class KotlinMain : ApplicationAdapter() {
         }
     }
 
+
     override fun render() {
         // Update camera
         camera.update()
 
-        gBuffer!!.use { // Automatically handles begin/end with exception safety
-            modelBatch!!.use(camera) {
-                for (instance in instances) {
-                    instance.transform.rotate(0f, 1f, 0f, 0.5f)
-                    render(instance, environment)
+        gBuffer!!.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
+            for ((index, instance) in instances.withIndex()) {
+                fixedColorShader.setColor(IndexAsColor.color(index))
+
+                // ineffective, but I dont want to debug `effective` way now
+                gBufferModelBatch!!.use(camera) {
+                    render(instance)
                 }
             }
         }
@@ -153,6 +168,7 @@ class KotlinMain : ApplicationAdapter() {
 
         // Dispose 3D resources
         modelBatch?.dispose()
+        gBufferModelBatch?.dispose()
         model?.dispose()
 
         // Dispose G-buffer resources
