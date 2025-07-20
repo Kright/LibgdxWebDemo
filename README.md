@@ -2,17 +2,12 @@
 
 A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
 
-How to run HTML with GWT:
-```
-./gradlew html:superDev
-```
-
-How to run HTML with teaVM
+How to run Web version (TeaVM)
 ```
 ./gradlew teavm:run
 ```
 
-desktop
+How to run Desktop version (LWJGL3)
 ```
 ./gradlew lwjgl3:run
 ```
@@ -25,7 +20,6 @@ This project was generated with a template including simple application launcher
 
 - `core`: Main module with the application logic shared by all platforms.
 - `lwjgl3`: Primary desktop platform using LWJGL3; was called 'desktop' in older docs.
-- `html`: Web platform using GWT and WebGL. Supports only Java projects.
 - `teavm`: Web backend that supports most JVM languages.
 
 ## Gradle
@@ -43,8 +37,6 @@ Useful Gradle tasks and flags:
 - `cleanIdea`: removes IntelliJ project data.
 - `clean`: removes `build` folders, which store compiled classes and built archives.
 - `eclipse`: generates Eclipse project data.
-- `html:dist`: compiles GWT sources. The compiled application can be found at `html/build/dist`: you can use any HTTP server to deploy it.
-- `html:superDev`: compiles GWT sources and runs the application in SuperDev mode. It will be available at [localhost:8080/html](http://localhost:8080/html). Use only during development.
 - `idea`: generates IntelliJ project data.
 - `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
 - `lwjgl3:run`: starts the application.
