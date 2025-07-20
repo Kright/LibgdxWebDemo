@@ -1,5 +1,6 @@
 package com.github.kright.teavm;
 
+import com.github.kright.KotlinMain;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplicationConfiguration;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplication;
 import com.github.kright.Main;
@@ -20,6 +21,6 @@ public class TeaVMLauncher {
         //// If width and height are both -1, then the app will fill the canvas size.
 //        config.width = -1;
 //        config.height = -1;
-        new TeaApplication(new Main(), config);
+        new TeaApplication(new KotlinMain(), config);
     }
 }
