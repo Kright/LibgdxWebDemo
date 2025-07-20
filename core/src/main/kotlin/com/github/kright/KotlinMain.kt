@@ -30,6 +30,9 @@ class KotlinMain : ApplicationAdapter() {
     private var environment: Environment? = null
     private val instances = ArrayList<ModelInstance>()
 
+    // G-buffer for offscreen rendering
+    private var gBuffer: GBuffer? = null
+
     override fun create() {
         batch = SpriteBatch()
         image = Texture("libgdx.png")
@@ -37,6 +40,9 @@ class KotlinMain : ApplicationAdapter() {
 
         // Initialize 3D components
         modelBatch = ModelBatch()
+
+        // Initialize G-buffer for offscreen rendering
+        gBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height)
 
         // Set up camera
         camera = PerspectiveCamera(67f, Gdx.graphics.getWidth().toFloat(), Gdx.graphics.getHeight().toFloat())
@@ -67,25 +73,39 @@ class KotlinMain : ApplicationAdapter() {
     }
 
     override fun render() {
-        // Clear the screen and depth buffer
-        ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f)
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
-
         // Update camera
         camera.update()
 
-        // Render 3D model
-        modelBatch!!.begin(camera)
+        // Step 1: Render 3D content to G-buffer
+        gBuffer!!.use { // Automatically handles begin/end with exception safety
+            // Render 3D model to G-buffer
+            modelBatch!!.begin(camera)
 
-        for (instance in instances) {
-            instance.transform.rotate(0f, 1f, 0f, 0.5f)
-            modelBatch!!.render(instance, environment)
+            for (instance in instances) {
+                instance.transform.rotate(0f, 1f, 0f, 0.5f)
+                modelBatch!!.render(instance, environment)
+            }
+
+            modelBatch!!.end()
         }
 
-        modelBatch!!.end()
+        // Step 2: Render G-buffer texture to screen
+        // Clear the screen
+        ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f)
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
 
-        // Render 2D sprite on top if needed
+        // Render the G-buffer texture to the screen
         batch!!.begin()
+        batch!!.draw(
+            gBuffer!!.colorTexture,
+            0f, 0f,
+            Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat(),
+            0, 0,
+            gBuffer!!.colorTexture.width, gBuffer!!.colorTexture.height,
+            false, true // Flip vertically because FrameBuffer textures are Y-flipped
+        )
+
+        // Step 3: Render 2D UI elements directly to the screen
         batch!!.draw(image, 140f, 210f)
 
         // Display FPS counter in the top left corner
@@ -105,6 +125,16 @@ class KotlinMain : ApplicationAdapter() {
         batch!!.end()
     }
 
+    override fun resize(width: Int, height: Int) {
+        // Update camera aspect ratio
+        camera.viewportWidth = width.toFloat()
+        camera.viewportHeight = height.toFloat()
+        camera.update()
+
+        // Resize G-buffer to match new screen dimensions
+        gBuffer?.resize(width, height)
+    }
+
     override fun dispose() {
         // Dispose 2D resources
         batch?.dispose()
@@ -114,6 +144,9 @@ class KotlinMain : ApplicationAdapter() {
         // Dispose 3D resources
         modelBatch?.dispose()
         model?.dispose()
+
+        // Dispose G-buffer resources
+        gBuffer?.dispose()
     }
 
     companion object {
