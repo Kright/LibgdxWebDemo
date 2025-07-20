@@ -17,33 +17,30 @@ import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
 import kotlin.math.max
 
-class KotlinMain : ApplicationAdapter() {
-    private var batch: SpriteBatch? = null
-    private var image: Texture? = null
-    private var font: BitmapFont? = null
+class KotlinApplicationAdapter : ApplicationAdapter() {
+    private val batch: SpriteBatch = SpriteBatch()
+    private val image: Texture = Texture("libgdx.png")
+    private var font: BitmapFont = BitmapFont()
 
     // 3D rendering components
-    private lateinit var camera: PerspectiveCamera
-    private var modelBatch: ModelBatch? = null
-    private var gBufferModelBatch: ModelBatch? = null
-    private var model: Model? = null
-    private var environment: Environment? = null
-    private val instances = ArrayList<ModelInstance>()
+    private val camera: PerspectiveCamera =
+        PerspectiveCamera(
+            67f,
+            Gdx.graphics.getWidth().toFloat(),
+            Gdx.graphics.getHeight().toFloat()
+        ).apply {
+            val cameraDist: Float = max(objectsX, objectsX) * 1.8f
+            val cameraPos = Vector3(5f, 5f, 2f).setLength(cameraDist)
+            position.set(cameraPos)
+            lookAt(0f, 0f, 0f)
+            near = 1f
+            far = 200f
+            update()
+        }
 
-    // G-buffer for offscreen rendering
-    private var gBuffer: GBuffer? = null
-    private val fixedColorShader: FixedColorShader by lazy { FixedColorShader(ShaderCode.load("fixedColor")) }
+    private val modelBatch: ModelBatch = ModelBatch()
 
-    override fun create() {
-        batch = SpriteBatch()
-        image = Texture("libgdx.png")
-        font = BitmapFont()
-
-        // Initialize 3D components
-        modelBatch = ModelBatch()
-
-
-        // Create a custom ShaderProvider for the GBuffer rendering
+    private val gBufferModelBatch: ModelBatch = run {
         val fixedColorShaderProvider = object : ShaderProvider {
             override fun getShader(renderable: Renderable): Shader {
                 return fixedColorShader
@@ -51,29 +48,23 @@ class KotlinMain : ApplicationAdapter() {
 
             override fun dispose() {}
         }
-        gBufferModelBatch = ModelBatch(fixedColorShaderProvider)
 
-        // Initialize G-buffer for offscreen rendering
-        gBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height)
+        ModelBatch(fixedColorShaderProvider)
+    }
 
-        // Set up camera
-        camera = PerspectiveCamera(67f, Gdx.graphics.getWidth().toFloat(), Gdx.graphics.getHeight().toFloat())
-        val cameraDist: Float = max(objectsX, objectsX) * 1.8f
-        val cameraPos = Vector3(5f, 5f, 2f).setLength(cameraDist)
-        camera.position.set(cameraPos)
-        camera.lookAt(0f, 0f, 0f)
-        camera.near = 1f
-        camera.far = 200f
-        camera.update()
+    private var model: Model = ObjLoader().loadModel(Gdx.files.internal("Sphere128x64.obj"))
+    private val environment: Environment = Environment().apply {
+        set(ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f))
+        add(DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f))
+    }
+    private val instances = ArrayList<ModelInstance>()
 
-        // Set up lighting environment
-        environment = Environment()
-        environment!!.set(ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f))
-        environment!!.add(DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f))
+    // G-buffer for offscreen rendering
+    private val gBuffer: GBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height)
+    private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor"))
 
-        // Load the sphere model
-        val loader = ObjLoader()
-        model = loader.loadModel(Gdx.files.internal("Sphere128x64.obj"))
+    override fun create() {
+
 
         for (z in 0..<objectsZ) {
             for (x in 0..<objectsX) {
@@ -89,12 +80,12 @@ class KotlinMain : ApplicationAdapter() {
         // Update camera
         camera.update()
 
-        gBuffer!!.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
+        gBuffer.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
             for ((index, instance) in instances.withIndex()) {
                 fixedColorShader.setColor(IndexAsColor.color(index))
 
                 // ineffective, but I dont want to debug `effective` way now
-                gBufferModelBatch!!.use(camera) {
+                gBufferModelBatch.use(camera) {
                     render(instance)
                 }
             }
@@ -105,7 +96,7 @@ class KotlinMain : ApplicationAdapter() {
         ScreenUtils.clear(1f, 0f, 1f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
 
-        modelBatch!!.use(camera) {
+        modelBatch.use(camera) {
             for (instance in instances) {
                 instance.transform.rotate(0f, 1f, 0f, 0.5f)
                 render(instance, environment)
@@ -113,34 +104,34 @@ class KotlinMain : ApplicationAdapter() {
         }
 
         // Render the G-buffer texture to the screen
-        batch!!.begin()
-        batch!!.draw(
-            gBuffer!!.colorTexture,
+        batch.begin()
+        batch.draw(
+            gBuffer.colorTexture,
             Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
             Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
             0, 0,
-            gBuffer!!.colorTexture.width, gBuffer!!.colorTexture.height,
+            gBuffer.colorTexture.width, gBuffer.colorTexture.height,
             false, true // Flip vertically because FrameBuffer textures are Y-flipped
         )
 
         // Step 3: Render 2D UI elements directly to the screen
-        batch!!.draw(image, 140f, 210f)
+        batch.draw(image, 140f, 210f)
 
         // Display FPS counter in the top left corner
-        font!!.draw(
+        font.draw(
             batch,
             "FPS: ${Gdx.graphics.getFramesPerSecond()}",
             10f,
-            Gdx.graphics.getHeight() - font!!.getLineHeight()
+            Gdx.graphics.getHeight() - font.getLineHeight()
         )
-        font!!.draw(
+        font.draw(
             batch,
             "triangles count: ${16128 * objectsX * objectsZ}",
             10f,
-            Gdx.graphics.getHeight() - font!!.getLineHeight() * 2
+            Gdx.graphics.getHeight() - font.getLineHeight() * 2
         )
 
-        batch!!.end()
+        batch.end()
     }
 
     override fun resize(width: Int, height: Int) {
@@ -152,27 +143,27 @@ class KotlinMain : ApplicationAdapter() {
         camera.update()
 
         // Resize G-buffer to match new screen dimensions
-        gBuffer?.resize(width, height)
+        gBuffer.resize(width, height)
 
         // Update SpriteBatch projection matrix
         val cam2d = com.badlogic.gdx.graphics.OrthographicCamera(width.toFloat(), height.toFloat())
         cam2d.setToOrtho(false) // Origin bottom-left, y-up
-        batch?.projectionMatrix = cam2d.combined
+        batch.projectionMatrix = cam2d.combined
     }
 
     override fun dispose() {
         // Dispose 2D resources
-        batch?.dispose()
-        image?.dispose()
-        font?.dispose()
+        batch.dispose()
+        image.dispose()
+        font.dispose()
 
         // Dispose 3D resources
-        modelBatch?.dispose()
-        gBufferModelBatch?.dispose()
-        model?.dispose()
+        modelBatch.dispose()
+        gBufferModelBatch.dispose()
+        model.dispose()
 
         // Dispose G-buffer resources
-        gBuffer?.dispose()
+        gBuffer.dispose()
     }
 
     companion object {
