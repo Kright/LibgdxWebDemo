@@ -91,7 +91,7 @@ class KotlinMain : ApplicationAdapter() {
 
         // Step 2: Render G-buffer texture to screen
         // Clear the screen
-        ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f)
+        ScreenUtils.clear(1f, 0f, 1f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
 
         // Render the G-buffer texture to the screen
@@ -126,6 +126,8 @@ class KotlinMain : ApplicationAdapter() {
     }
 
     override fun resize(width: Int, height: Int) {
+        Gdx.gl.glViewport(0, 0, width, height)
+
         // Update camera aspect ratio
         camera.viewportWidth = width.toFloat()
         camera.viewportHeight = height.toFloat()
@@ -133,6 +135,11 @@ class KotlinMain : ApplicationAdapter() {
 
         // Resize G-buffer to match new screen dimensions
         gBuffer?.resize(width, height)
+
+        // Update SpriteBatch projection matrix
+        val cam2d = com.badlogic.gdx.graphics.OrthographicCamera(width.toFloat(), height.toFloat())
+        cam2d.setToOrtho(false) // Origin bottom-left, y-up
+        batch?.projectionMatrix = cam2d.combined
     }
 
     override fun dispose() {
