@@ -3,7 +3,6 @@ package com.github.kright.teavm;
 import com.github.kright.KotlinMain;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplicationConfiguration;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplication;
-import com.github.kright.Main;
 
 /**
  * Launches the TeaVM/HTML application.
