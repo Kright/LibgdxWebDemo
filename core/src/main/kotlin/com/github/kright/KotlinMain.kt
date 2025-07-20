@@ -76,17 +76,13 @@ class KotlinMain : ApplicationAdapter() {
         // Update camera
         camera.update()
 
-        // Step 1: Render 3D content to G-buffer
         gBuffer!!.use { // Automatically handles begin/end with exception safety
-            // Render 3D model to G-buffer
-            modelBatch!!.begin(camera)
-
-            for (instance in instances) {
-                instance.transform.rotate(0f, 1f, 0f, 0.5f)
-                modelBatch!!.render(instance, environment)
+            modelBatch!!.use(camera) {
+                for (instance in instances) {
+                    instance.transform.rotate(0f, 1f, 0f, 0.5f)
+                    render(instance, environment)
+                }
             }
-
-            modelBatch!!.end()
         }
 
         // Step 2: Render G-buffer texture to screen
@@ -94,12 +90,19 @@ class KotlinMain : ApplicationAdapter() {
         ScreenUtils.clear(1f, 0f, 1f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
 
+        modelBatch!!.use(camera) {
+            for (instance in instances) {
+                instance.transform.rotate(0f, 1f, 0f, 0.5f)
+                render(instance, environment)
+            }
+        }
+
         // Render the G-buffer texture to the screen
         batch!!.begin()
         batch!!.draw(
             gBuffer!!.colorTexture,
-            0f, 0f,
-            Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat(),
+            Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
+            Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
             0, 0,
             gBuffer!!.colorTexture.width, gBuffer!!.colorTexture.height,
             false, true // Flip vertically because FrameBuffer textures are Y-flipped
