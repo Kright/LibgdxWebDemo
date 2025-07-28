@@ -7,7 +7,6 @@ import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Vector3
 import ktx.math.plus
 import ktx.math.times
-import ktx.math.timesAssign
 
 object AxisRender {
     private val center = Vector3(0f, 0f, 0f)
@@ -21,13 +20,14 @@ object AxisRender {
 
     fun renderAxesAndPlanes(transform: Matrix4, camera: Camera, shapeRenderer: ShapeRenderer): Unit {
         val vec: Vector3 = transform.getTranslation(Vector3())
-        vec *= camera.view
-        val depth = vec.z
 
-        val scale = Math.abs(depth) * 0.1f
+        val p = camera.project(vec.cpy())
+        val realDepth = (camera.near + (camera.far - camera.near) * 0.5f * (p.z + 1f) / camera.far)
+
+        val scale = Math.abs(realDepth) * 2f
 
         shapeRenderer.transformMatrix = transform
-        
+
         shapeRenderer.color = xColor
         shapeRenderer.line(center, xAxis * scale)
         shapeRenderer.color = yColor
@@ -47,7 +47,7 @@ object AxisRender {
         shapeRenderer.rect3d(center, xAxis * scale, zAxis * scale, minX, maxX, minY, maxY)
 
         shapeRenderer.color = zColor
-        shapeRenderer.rect3d(center, xAxis * scale , yAxis * scale , minX, maxX, minY, maxY)
+        shapeRenderer.rect3d(center, xAxis * scale, yAxis * scale, minX, maxX, minY, maxY)
     }
 
     private fun ShapeRenderer.rect3d(
