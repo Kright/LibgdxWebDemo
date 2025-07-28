@@ -41,6 +41,26 @@ class GBuffer(
         }
     }
 
+    fun getPixel(x: Int, y: Int, swapY: Boolean = false): Color {
+        if (swapY) {
+            return getPixel(x, frameBuffer.height - y - 1, swapY = false)
+        }
+
+        val buffer = ScreenUtils.getFrameBufferPixels(x, y, 1, 1, false)
+        println("pixel = ${buffer[0]}, ${buffer[1]}, ${buffer[2]}, ${buffer[3]}")
+
+        return Color(
+            positiveByteValue(buffer[0]) / 255f,
+            positiveByteValue(buffer[1]) / 255f,
+            positiveByteValue(buffer[2]) / 255f,
+            positiveByteValue(buffer[3]) / 255f,
+        )
+    }
+
+    private fun positiveByteValue(value: Byte): Int {
+        return (value.toInt() and 0xFF)
+    }
+
     fun end() {
         frameBuffer.end()
     }

@@ -70,6 +70,7 @@ class KotlinApplicationAdapter(
     // G-buffer for offscreen rendering
     private val gBuffer: GBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
     private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
+    private val modelSelection: ModelsSelection = ModelsSelection()
 
     override fun create() {
         for (z in 0..<objectsZ) {
@@ -104,13 +105,12 @@ class KotlinApplicationAdapter(
 
         modelBatch.use(camera) {
             for (instance in instances) {
-                instance.transform.rotate(0f, 1f, 0f, 0.5f)
                 render(instance, environment)
             }
         }
 
         shapeRenderer.use(ShapeRenderer.ShapeType.Line, camera) {
-            for (instance in instances) {
+            for (instance in modelSelection.selected) {
                 AxisRender.renderAxesAndPlanes(instance.transform, camera, it)
             }
         }
@@ -119,8 +119,8 @@ class KotlinApplicationAdapter(
         batch.use {
             batch.draw(
                 gBuffer.colorTexture,
-                Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
-                Gdx.graphics.width.toFloat() * 0.5f, Gdx.graphics.height.toFloat() * 0.5f,
+                Gdx.graphics.width.toFloat() * 0.75f, Gdx.graphics.height.toFloat() * 0.75f,
+                Gdx.graphics.width.toFloat() * 0.25f, Gdx.graphics.height.toFloat() * 0.25f,
                 0, 0,
                 gBuffer.colorTexture.width, gBuffer.colorTexture.height,
                 false, true // Flip vertically because FrameBuffer textures are Y-flipped
@@ -142,6 +142,42 @@ class KotlinApplicationAdapter(
                 10f,
                 Gdx.graphics.getHeight() - font.getLineHeight() * 2
             )
+        }
+
+        handleMouseClick()
+    }
+
+    private fun handleMouseClick() {
+        if (Gdx.input.justTouched()) {
+            val screenX = Gdx.input.x
+            val screenY = Gdx.input.y
+
+            var pixel: Color? = null
+            gBuffer.use(clearColor = false, clearDepth = false) {
+                pixel = gBuffer.getPixel(screenX, screenY, swapY = true)
+            }
+            require(pixel != null)
+
+            println("pixel = $pixel")
+            println("index = ${IndexAsColor.index(pixel!!)}")
+
+            val index = IndexAsColor.index(pixel)
+
+            val isShiftPressed: Boolean =
+                Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_LEFT) ||
+                        Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_RIGHT)
+
+            if (isShiftPressed) {
+                if (index < instances.size) {
+                    modelSelection.selected.add(instances[index])
+                }
+            } else {
+                modelSelection.selected.clear()
+
+                if (index < instances.size) {
+                    modelSelection.selected.add(instances[index])
+                }
+            }
         }
     }
 
