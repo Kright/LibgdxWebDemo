@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
 import ktx.assets.DisposableContainer
@@ -25,7 +26,7 @@ class KotlinApplicationAdapter(
 ) : ApplicationAdapter(), DisposableRegistry by disposableContainer {
     private val batch: SpriteBatch = SpriteBatch().alsoRegister()
     private val image: Texture = Texture("libgdx.png").alsoRegister()
-    private var font: BitmapFont = BitmapFont().alsoRegister()
+    private val font: BitmapFont = BitmapFont().alsoRegister()
 
     // 3D rendering components
     private val camera: PerspectiveCamera =
@@ -44,6 +45,7 @@ class KotlinApplicationAdapter(
         }
 
     private val modelBatch: ModelBatch = ModelBatch().alsoRegister()
+    private val shapeRenderer: ShapeRenderer = ShapeRenderer().alsoRegister()
 
     private val gBufferModelBatch: ModelBatch = run {
         val fixedColorShaderProvider = object : ShaderProvider {
@@ -104,6 +106,12 @@ class KotlinApplicationAdapter(
             for (instance in instances) {
                 instance.transform.rotate(0f, 1f, 0f, 0.5f)
                 render(instance, environment)
+            }
+        }
+
+        shapeRenderer.use(ShapeRenderer.ShapeType.Line, camera) {
+            for (instance in instances) {
+                AxisRender.renderAxesAndPlanes(instance.transform, camera, it)
             }
         }
 
