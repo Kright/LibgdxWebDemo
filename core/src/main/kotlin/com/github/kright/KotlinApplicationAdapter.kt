@@ -15,13 +15,17 @@ import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
+import ktx.assets.DisposableContainer
+import ktx.assets.DisposableRegistry
 import ktx.graphics.use
 import kotlin.math.max
 
-class KotlinApplicationAdapter : ApplicationAdapter() {
-    private val batch: SpriteBatch = SpriteBatch()
-    private val image: Texture = Texture("libgdx.png")
-    private var font: BitmapFont = BitmapFont()
+class KotlinApplicationAdapter(
+    private val disposableContainer: DisposableContainer = DisposableContainer()
+) : ApplicationAdapter(), DisposableRegistry by disposableContainer {
+    private val batch: SpriteBatch = SpriteBatch().alsoRegister()
+    private val image: Texture = Texture("libgdx.png").alsoRegister()
+    private var font: BitmapFont = BitmapFont().alsoRegister()
 
     // 3D rendering components
     private val camera: PerspectiveCamera =
@@ -39,7 +43,7 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
             update()
         }
 
-    private val modelBatch: ModelBatch = ModelBatch()
+    private val modelBatch: ModelBatch = ModelBatch().alsoRegister()
 
     private val gBufferModelBatch: ModelBatch = run {
         val fixedColorShaderProvider = object : ShaderProvider {
@@ -51,9 +55,10 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
         }
 
         ModelBatch(fixedColorShaderProvider)
-    }
+    }.alsoRegister()
 
-    private var model: Model = ObjLoader().loadModel(Gdx.files.internal("Sphere128x64.obj"))
+    private val model: Model = ObjLoader().loadModel(Gdx.files.internal("Sphere128x64.obj")).alsoRegister()
+
     private val environment: Environment = Environment().apply {
         set(ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f))
         add(DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f))
@@ -61,12 +66,10 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
     private val instances = ArrayList<ModelInstance>()
 
     // G-buffer for offscreen rendering
-    private val gBuffer: GBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height)
-    private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor"))
+    private val gBuffer: GBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
+    private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
 
     override fun create() {
-
-
         for (z in 0..<objectsZ) {
             for (x in 0..<objectsX) {
                 val instance = ModelInstance(model)
@@ -85,7 +88,7 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
             for ((index, instance) in instances.withIndex()) {
                 fixedColorShader.setColor(IndexAsColor.color(index))
 
-                // ineffective, but I dont want to debug `effective` way now
+                // ineffective, but I don't want to debug `effective` way now
                 gBufferModelBatch.use(camera) {
                     render(instance)
                 }
@@ -152,18 +155,7 @@ class KotlinApplicationAdapter : ApplicationAdapter() {
     }
 
     override fun dispose() {
-        // Dispose 2D resources
-        batch.dispose()
-        image.dispose()
-        font.dispose()
-
-        // Dispose 3D resources
-        modelBatch.dispose()
-        gBufferModelBatch.dispose()
-        model.dispose()
-
-        // Dispose G-buffer resources
-        gBuffer.dispose()
+        disposableContainer.dispose()
     }
 
     companion object {
