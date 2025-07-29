@@ -13,13 +13,13 @@ import com.badlogic.gdx.utils.ScreenUtils
  * A class that handles rendering to an offscreen texture (G-buffer).
  * This allows for deferred rendering techniques or post-processing effects.
  */
-class GBuffer(
+class ColorMasksBuffer<T>(
     width: Int = Gdx.graphics.width,
     height: Int = Gdx.graphics.height,
     private val format: Pixmap.Format = Pixmap.Format.RGBA8888,
-    private val hasDepth: Boolean = true
+    private val hasDepth: Boolean = true,
 ) : Disposable {
-
+    private val coloredIndices: ColorsTable<T> = ColorsTable()
     private var frameBuffer: FrameBuffer = FrameBuffer(format, width, height, hasDepth)
 
     val colorTexture: Texture
@@ -34,6 +34,7 @@ class GBuffer(
 
         if (clearColor) {
             ScreenUtils.clear(color)
+            coloredIndices.clear()
         }
 
         if (clearDepth) {
@@ -41,20 +42,30 @@ class GBuffer(
         }
     }
 
-    fun getPixel(x: Int, y: Int, swapY: Boolean = false): Color {
+    fun reserveColor(value: T): Color =
+        coloredIndices.reserveColor(value)
+
+    fun useAndGetPixelOrNull(x: Int, y: Int, swapY: Boolean = false): T? {
+        this.use(clearColor = false, clearDepth = false) {
+            return getPixelOrNull(x, y, swapY)
+        }
+    }
+
+    fun getPixelOrNull(x: Int, y: Int, swapY: Boolean = false): T? {
         if (swapY) {
-            return getPixel(x, frameBuffer.height - y - 1, swapY = false)
+            return getPixelOrNull(x, frameBuffer.height - y - 1, swapY = false)
         }
 
         val buffer = ScreenUtils.getFrameBufferPixels(x, y, 1, 1, false)
-        println("pixel = ${buffer[0]}, ${buffer[1]}, ${buffer[2]}, ${buffer[3]}")
 
-        return Color(
+        val color = Color(
             positiveByteValue(buffer[0]) / 255f,
             positiveByteValue(buffer[1]) / 255f,
             positiveByteValue(buffer[2]) / 255f,
             positiveByteValue(buffer[3]) / 255f,
         )
+
+        return coloredIndices.getOrNull(color)
     }
 
     private fun positiveByteValue(value: Byte): Int {
@@ -72,14 +83,15 @@ class GBuffer(
     fun resize(width: Int, height: Int) {
         frameBuffer.dispose()
         frameBuffer = FrameBuffer(format, width, height, hasDepth)
+        coloredIndices.clear()
     }
 
-    inline fun <T> use(
+    inline fun <U> use(
         clearColor: Boolean = true,
         clearDepth: Boolean = true,
         color: Color = Color.BLACK,
-        block: GBuffer.() -> T
-    ): T {
+        block: ColorMasksBuffer<T>.() -> U
+    ): U {
         try {
             begin(clearColor, clearDepth, color)
             return block()

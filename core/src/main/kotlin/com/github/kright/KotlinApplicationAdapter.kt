@@ -47,7 +47,7 @@ class KotlinApplicationAdapter(
     private val modelBatch: ModelBatch = ModelBatch().alsoRegister()
     private val shapeRenderer: ShapeRenderer = ShapeRenderer().alsoRegister()
 
-    private val gBufferModelBatch: ModelBatch = run {
+    private val maskBufferModelBatch: ModelBatch = run {
         val fixedColorShaderProvider = object : ShaderProvider {
             override fun getShader(renderable: Renderable): Shader {
                 return fixedColorShader
@@ -68,9 +68,12 @@ class KotlinApplicationAdapter(
     private val instances = ArrayList<ModelInstance>()
 
     // G-buffer for offscreen rendering
-    private val gBuffer: GBuffer = GBuffer(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
+    private val maskBuffer: ColorMasksBuffer<ClickedObject> =
+        ColorMasksBuffer<ClickedObject>(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
     private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
     private val modelSelection: ModelsSelection = ModelsSelection()
+
+    private var maskSize = 0.25f
 
     override fun create() {
         for (z in 0..<objectsZ) {
@@ -87,18 +90,28 @@ class KotlinApplicationAdapter(
         // Update camera
         camera.update()
 
-        gBuffer.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
-            for ((index, instance) in instances.withIndex()) {
-                fixedColorShader.setColor(IndexAsColor.color(index))
-
+        maskBuffer.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
+            for (model in instances) {
+                val color = maskBuffer.reserveColor(ClickedObject.Model(model))
+                fixedColorShader.setColor(color)
                 // ineffective, but I don't want to debug `effective` way now
-                gBufferModelBatch.use(camera) {
-                    render(instance)
+                maskBufferModelBatch.use(camera) {
+                    render(model)
                 }
             }
         }
 
-        // Step 2: Render G-buffer texture to screen
+        maskBuffer.use(clearColor = false, clearDepth = true) {
+            Gdx.gl.glEnable(GL20.GL_DEPTH_TEST)
+            shapeRenderer.use(ShapeRenderer.ShapeType.Filled, camera) {
+                for (model in modelSelection.selected) {
+                    AxisRender.renderAxesForSelection(model.transform, camera, shapeRenderer, maskBuffer, model)
+                }
+            }
+            Gdx.gl.glDisable(GL20.GL_DEPTH_TEST)
+        }
+
+        // Step 2: Render masks texture to screen
         // Clear the screen
         ScreenUtils.clear(1f, 0f, 1f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
@@ -117,12 +130,20 @@ class KotlinApplicationAdapter(
 
         // Render the G-buffer texture to the screen
         batch.use {
+            if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.NUM_1)) {
+                if (maskSize == 1f) {
+                    maskSize = 0.25f
+                } else {
+                    maskSize = 1f
+                }
+            }
+
             batch.draw(
-                gBuffer.colorTexture,
-                Gdx.graphics.width.toFloat() * 0.75f, Gdx.graphics.height.toFloat() * 0.75f,
-                Gdx.graphics.width.toFloat() * 0.25f, Gdx.graphics.height.toFloat() * 0.25f,
+                maskBuffer.colorTexture,
+                Gdx.graphics.width.toFloat() * (1f - maskSize), Gdx.graphics.height.toFloat() * (1f - maskSize),
+                Gdx.graphics.width.toFloat() * maskSize, Gdx.graphics.height.toFloat() * maskSize,
                 0, 0,
-                gBuffer.colorTexture.width, gBuffer.colorTexture.height,
+                maskBuffer.colorTexture.width, maskBuffer.colorTexture.height,
                 false, true // Flip vertically because FrameBuffer textures are Y-flipped
             )
 
@@ -147,35 +168,32 @@ class KotlinApplicationAdapter(
         handleMouseClick()
     }
 
+    private fun isShiftPressed(): Boolean =
+        Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_LEFT) ||
+                Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_RIGHT)
+
     private fun handleMouseClick() {
         if (Gdx.input.justTouched()) {
             val screenX = Gdx.input.x
             val screenY = Gdx.input.y
 
-            var pixel: Color? = null
-            gBuffer.use(clearColor = false, clearDepth = false) {
-                pixel = gBuffer.getPixel(screenX, screenY, swapY = true)
-            }
-            require(pixel != null)
+            val clickedObject = maskBuffer.useAndGetPixelOrNull(screenX, screenY, swapY = true)
 
-            println("pixel = $pixel")
-            println("index = ${IndexAsColor.index(pixel!!)}")
-
-            val index = IndexAsColor.index(pixel)
-
-            val isShiftPressed: Boolean =
-                Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_LEFT) ||
-                        Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_RIGHT)
-
-            if (isShiftPressed) {
-                if (index < instances.size) {
-                    modelSelection.selected.add(instances[index])
+            when (clickedObject) {
+                null -> {
+                    modelSelection.selected.clear() // deselect
                 }
-            } else {
-                modelSelection.selected.clear()
 
-                if (index < instances.size) {
-                    modelSelection.selected.add(instances[index])
+                is ClickedObject.Model -> {
+                    if (!isShiftPressed()) {
+                        modelSelection.selected.clear()
+                    }
+
+                    modelSelection.selected.add(clickedObject.model)
+                }
+
+                is ClickedObject.ModelMovement -> {
+                    // todo movement
                 }
             }
         }
@@ -190,7 +208,7 @@ class KotlinApplicationAdapter(
         camera.update()
 
         // Resize G-buffer to match new screen dimensions
-        gBuffer.resize(width, height)
+        maskBuffer.resize(width, height)
 
         // Update SpriteBatch projection matrix
         val cam2d = com.badlogic.gdx.graphics.OrthographicCamera(width.toFloat(), height.toFloat())
