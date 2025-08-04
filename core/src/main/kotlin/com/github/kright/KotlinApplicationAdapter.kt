@@ -14,7 +14,6 @@ import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
-import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
 import ktx.assets.DisposableContainer
@@ -73,7 +72,7 @@ class KotlinApplicationAdapter(
         ColorMasksBuffer<ClickedObject>(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
     private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
     private val modelSelection: ModelsSelection = ModelsSelection()
-    private var dragState: DragState? = null
+    private var modelDrag: ModelGrag? = null
 
     private var maskSize = 0.25f
 
@@ -173,7 +172,7 @@ class KotlinApplicationAdapter(
     private fun isShiftPressed(): Boolean =
         Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_LEFT) ||
                 Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SHIFT_RIGHT)
-                
+
     private fun handleMouseClick() {
         // Handle starting drag operation when mouse is clicked
         if (Gdx.input.justTouched()) {
@@ -185,7 +184,7 @@ class KotlinApplicationAdapter(
             when (clickedObject) {
                 null -> {
                     modelSelection.selected.clear() // deselect
-                    dragState = null
+                    modelDrag = null
                 }
 
                 is ClickedObject.Model -> {
@@ -194,28 +193,27 @@ class KotlinApplicationAdapter(
                     }
 
                     modelSelection.selected.add(clickedObject.model)
-                    dragState = null
+                    modelDrag = null
                 }
 
                 is ClickedObject.ModelMovement -> {
                     val model = clickedObject.model
                     val axes = clickedObject.axes
-                    val initialMousePos = Vector2(clickedX.toFloat(), clickedY.toFloat())
-                    
+
                     // Start dragging operation
-                    dragState = DragState(camera, modelSelection, model, axes, initialMousePos)
+                    modelDrag = ModelGrag.create(camera, model, modelSelection, axes)
                 }
             }
         }
 
         // Handle ongoing drag operation
-        if (dragState != null) {
+        modelDrag?.let {
             if (Gdx.input.isTouched()) {
                 // Update dragging with current mouse position
-                dragState?.updateDragging(Gdx.input.x, Gdx.input.y)
+                it.updateDragging()
             } else {
                 // Mouse released, end dragging
-                dragState = null
+                modelDrag = null
             }
         }
     }

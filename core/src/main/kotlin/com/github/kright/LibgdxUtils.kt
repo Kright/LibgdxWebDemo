@@ -29,3 +29,7 @@ fun ShapeRenderer.box(
         depth = -size.z // I don't know why libgdx inverts depth; it's awful logic
     )
 }
+
+
+val Camera.right: Vector3
+    get() = Vector3(direction).crs(up).nor()
