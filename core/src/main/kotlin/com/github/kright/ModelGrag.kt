@@ -133,7 +133,7 @@ private class ModelDraggingInPlane(
             val initialMousePos = getMousePos()
             val plane = run {
                 val bodyCenter = draggedModel.transform.getTranslation(Vector3())
-                val camToBody = bodyCenter.sub(camera.position).nor()
+                val camToBody = (bodyCenter - camera.position).nor()
                 val normal = camToBody - (axis * camToBody.dot(axis))
                 if (normal.len() < 0.05) return null
                 normal.nor()
