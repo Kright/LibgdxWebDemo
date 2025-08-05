@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.math.collision.Ray
 import ktx.math.minus
 import ktx.math.plus
+import ktx.math.times
 
 sealed interface ModelGrag {
     fun updateDragging()
@@ -26,36 +27,36 @@ sealed interface ModelGrag {
             return when (draggedAxes) {
                 MovementAxes.NOTHING -> null
 
-                MovementAxes.X -> ModelDraggingAlongAxis(camera, modelSelection, draggedModel, Vector3.X)
-                MovementAxes.Y -> ModelDraggingAlongAxis(camera, modelSelection, draggedModel, Vector3.Y)
-                MovementAxes.Z -> ModelDraggingAlongAxis(camera, modelSelection, draggedModel, Vector3.Z)
+                MovementAxes.X -> ModelDraggingInPlane.createForAxis(camera, modelSelection, draggedModel, Vector3.X.cpy())
+                MovementAxes.Y -> ModelDraggingInPlane.createForAxis(camera, modelSelection, draggedModel, Vector3.Y.cpy())
+                MovementAxes.Z -> ModelDraggingInPlane.createForAxis(camera, modelSelection, draggedModel, Vector3.Z.cpy())
 
-                MovementAxes.XY -> ModelDraggingInPlane(
+                MovementAxes.XY -> ModelDraggingInPlane.createForPlane(
                     camera,
                     modelSelection,
                     draggedModel,
                     Plane(Vector3.Z, bodyCenter)
                 )
 
-                MovementAxes.XZ -> ModelDraggingInPlane(
+                MovementAxes.XZ -> ModelDraggingInPlane.createForPlane(
                     camera,
                     modelSelection,
                     draggedModel,
                     Plane(Vector3.Y, bodyCenter)
                 )
 
-                MovementAxes.YZ -> ModelDraggingInPlane(
+                MovementAxes.YZ -> ModelDraggingInPlane.createForPlane(
                     camera,
                     modelSelection,
                     draggedModel,
                     Plane(Vector3.X, bodyCenter)
                 )
 
-                MovementAxes.XYZ -> ModelDraggingInPlane(
+                MovementAxes.XYZ -> ModelDraggingInPlane.createForPlane(
                     camera,
                     modelSelection,
                     draggedModel,
-                    Plane(camera.direction, bodyCenter)
+                    Plane( (bodyCenter - camera.position).nor(), bodyCenter)
                 )
             }
         }
@@ -80,87 +81,87 @@ private class ModelDraggingInPlane(
     private val modelSelection: ModelsSelection,
     private val draggedModel: ModelInstance,
     private val plane: Plane,
+    private val initialIntersection: Vector3,
+    private val castAxis: Vector3? = null,
 ) : ModelGrag {
 
-    private val initialMousePos = getMousePos()
     private val initialModelsPositions: Map<ModelInstance, Vector3> =
         modelSelection.selected.associateWith { it.transform.getTranslation(Vector3()) }
 
-    private val initialIntersection = findIntersection(initialMousePos)
-
     override fun updateDragging() {
-        if (initialIntersection == null) return
-
         val current = getMousePos()
-
-        val currentIntersection = findIntersection(current)
-
-        if (currentIntersection == null) return
+        val currentIntersection = findIntersection(camera, plane, current) ?: return
 
         val shift = currentIntersection - initialIntersection
 
+        val castShift =
+            if (castAxis == null) shift
+            else castAxis * shift.dot(castAxis)
+
         initialModelsPositions.forEach { (model, initialPos) ->
-            model.transform.setTranslation(initialPos + shift)
+            model.transform.setTranslation(initialPos + castShift)
         }
     }
 
-    private fun findIntersection(mousePos: Vector2): Vector3? {
-        val ray = mousePosToRay(camera, mousePos)
 
-        val intersection = Vector3()
-        if (Intersector.intersectRayPlane(ray, plane, intersection)) {
-            return intersection
-        } else {
-            return null
+    companion object {
+        fun createForPlane(
+            camera: Camera,
+            modelSelection: ModelsSelection,
+            draggedModel: ModelInstance,
+            plane: Plane
+        ): ModelGrag? {
+            val initialMousePos = getMousePos()
+            val initialIntersection = findIntersection(camera, plane, initialMousePos) ?: return null
+
+            return ModelDraggingInPlane(
+                camera,
+                modelSelection,
+                draggedModel,
+                plane,
+                initialIntersection,
+                castAxis = null
+            )
         }
-    }
-}
 
-private class ModelDraggingAlongAxis(
-    private val camera: Camera,
-    private val modelSelection: ModelsSelection,
-    private val draggedModel: ModelInstance,
-    private val axis: Vector3,
-) : ModelGrag {
+        fun createForAxis(
+            camera: Camera,
+            modelSelection: ModelsSelection,
+            draggedModel: ModelInstance,
+            axis: Vector3
+        ): ModelGrag? {
+            val initialMousePos = getMousePos()
+            val plane = run {
+                val bodyCenter = draggedModel.transform.getTranslation(Vector3())
+                val camToBody = bodyCenter.sub(camera.position).nor()
+                val normal = camToBody - (axis * camToBody.dot(axis))
+                if (normal.len() < 0.05) return null
+                normal.nor()
 
-    private val initialMousePos = getMousePos()
-    private val initialModelsPositions: Map<ModelInstance, Vector3> =
-        modelSelection.selected.associateWith { it.transform.getTranslation(Vector3()) }
+                Plane(normal, bodyCenter)
+            }
 
-    private val planeWithAxis: Plane = run {
-        val normal: Vector3 =
-            camera.up.cpy().crs(axis).takeIf { normal -> normal.len() > 0.5 }
-                ?: camera.right.cpy().crs(axis)
+            val initialIntersection = findIntersection(camera, plane, initialMousePos) ?: return null
 
-        Plane(normal, draggedModel.transform.getTranslation(Vector3()))
-    }
-
-    private val initialIntersection = findIntersection(initialMousePos)
-
-    override fun updateDragging() {
-        if (initialIntersection == null) return
-
-        val current = getMousePos()
-        val currentIntersection = findIntersection(current)
-
-        if (currentIntersection == null) return
-
-        val shift = currentIntersection - initialIntersection
-
-        val realShift = axis.cpy().scl(shift.dot(axis))
-        initialModelsPositions.forEach { (model, initialPos) ->
-            model.transform.setTranslation(initialPos + realShift)
+            return ModelDraggingInPlane(
+                camera,
+                modelSelection,
+                draggedModel,
+                plane,
+                initialIntersection,
+                castAxis = axis,
+            )
         }
-    }
 
-    private fun findIntersection(mousePos: Vector2): Vector3? {
-        val ray = mousePosToRay(camera, mousePos)
+        private fun findIntersection(camera: Camera, plane: Plane, mousePos: Vector2): Vector3? {
+            val ray = mousePosToRay(camera, mousePos)
 
-        val intersection = Vector3()
-        if (Intersector.intersectRayPlane(ray, planeWithAxis, intersection)) {
-            return intersection
-        } else {
-            return null
+            val intersection = Vector3()
+            if (Intersector.intersectRayPlane(ray, plane, intersection)) {
+                return intersection
+            } else {
+                return null
+            }
         }
     }
 }
