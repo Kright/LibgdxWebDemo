@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
+import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.ScreenUtils
 import ktx.assets.DisposableContainer
@@ -44,6 +45,8 @@ class KotlinApplicationAdapter(
             update()
         }
 
+
+
     private val modelBatch: ModelBatch = ModelBatch().alsoRegister()
     private val shapeRenderer: ShapeRenderer = ShapeRenderer().alsoRegister()
 
@@ -60,6 +63,7 @@ class KotlinApplicationAdapter(
     }.alsoRegister()
 
     private val model: Model = ObjLoader().loadModel(Gdx.files.internal("Sphere128x64.obj")).alsoRegister()
+    private val model2: Model = ObjLoader().loadModel(Gdx.files.internal("arch.obj")).alsoRegister()
 
     private val environment: Environment = Environment().apply {
         set(ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f))
@@ -79,8 +83,11 @@ class KotlinApplicationAdapter(
     override fun create() {
         for (z in 0..<objectsZ) {
             for (x in 0..<objectsX) {
-                val instance = ModelInstance(model)
+                val instance = ModelInstance(model2)
                 instance.transform.translate((x - objectsX * 0.5f) * 2f, 0f, (z - objectsZ * 0.5f) * 2f)
+                val s = 0.00015f
+                instance.transform.scale(s, s,s)
+                instance.transform.rotate(Vector3.X, -90f)
                 instances.add(instance)
             }
         }
@@ -180,6 +187,8 @@ class KotlinApplicationAdapter(
             val clickedY = Gdx.input.y
 
             val clickedObject = maskBuffer.useAndGetPixelOrNull(clickedX, clickedY, swapY = true)
+
+            println("clickedObject: $clickedObject")
 
             when (clickedObject) {
                 null -> {

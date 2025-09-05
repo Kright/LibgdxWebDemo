@@ -19,12 +19,17 @@ object AxisRender {
     private val yColor = Color.GREEN
     private val zColor = Color.BLUE
 
+    private fun getRestoredTransfrom(transform: Matrix4): Matrix4 {
+        val center = Vector3().prj(transform)
+        return transform.idt().translate(center)
+    }
+
     fun renderAxesAndPlanes(transform: Matrix4, camera: Camera, shapeRenderer: ShapeRenderer) {
         require(shapeRenderer.currentType == ShapeRenderer.ShapeType.Line)
 
         val size = getSize(transform, camera)
 
-        shapeRenderer.transformMatrix = transform
+        shapeRenderer.transformMatrix = getRestoredTransfrom(transform)
         renderAxes(center, size, shapeRenderer)
         renderPlanes(size * 0.4f, size * 0.6f, shapeRenderer)
     }
@@ -38,9 +43,11 @@ object AxisRender {
     ) {
         require(shapeRenderer.currentType == ShapeRenderer.ShapeType.Filled)
 
-        val size = getSize(transform, camera)
+        val restoredTransform = getRestoredTransfrom(transform)
 
-        shapeRenderer.transformMatrix = transform
+        val size = getSize(restoredTransform, camera)
+
+        shapeRenderer.transformMatrix = restoredTransform
 
         val width: Float = size * 0.1f
         val centerBoxSize: Float = size * 0.3f
