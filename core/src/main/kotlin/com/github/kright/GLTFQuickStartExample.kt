@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.g3d.ModelBatch
+import com.badlogic.gdx.graphics.g3d.ModelInstance
 import com.badlogic.gdx.graphics.g3d.Renderable
 import com.badlogic.gdx.graphics.g3d.RenderableProvider
 import com.badlogic.gdx.graphics.g3d.Shader
@@ -34,6 +35,9 @@ class GLTFQuickStartExample(private val disposableContainer: DisposableContainer
 
     companion object {
         var cameraDistance: Float = 100f
+
+        private const val objectsX = 3
+        private const val objectsZ = 3
     }
 
     private val sceneManager: SceneManager = SceneManager().alsoRegister()
@@ -81,9 +85,15 @@ class GLTFQuickStartExample(private val disposableContainer: DisposableContainer
         // create scene
 
         val sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf")).alsoRegister()
-        val scene = Scene(sceneAsset.scene)
 
-        sceneManager.addScene(scene)
+        for (z in 0..<objectsZ) {
+            for (x in 0..<objectsX) {
+                val scene = Scene(sceneAsset.scene)
+                scene.modelInstance.transform.translate((x - (objectsX - 1) * 0.5f) * 40f, 0f, (z - (objectsZ - 1) * 0.5f) * 40f)
+                sceneManager.addScene(scene)
+            }
+        }
+
         sceneManager.setCamera(camera)
 
 
