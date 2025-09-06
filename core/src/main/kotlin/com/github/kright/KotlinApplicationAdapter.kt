@@ -35,8 +35,8 @@ class KotlinApplicationAdapter(private val disposableContainer: DisposableContai
     companion object {
         var cameraDistance: Float = 100f
 
-        private const val objectsX = 3
-        private const val objectsZ = 3
+        private const val objectsX = 2
+        private const val objectsZ = 2
     }
 
     private val sceneManager: SceneManager = SceneManager().alsoRegister()
