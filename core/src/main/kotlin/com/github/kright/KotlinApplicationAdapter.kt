@@ -8,46 +8,65 @@ import com.badlogic.gdx.graphics.PerspectiveCamera
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
-import com.badlogic.gdx.graphics.g3d.*
-import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
-import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
-import com.badlogic.gdx.graphics.g3d.loader.ObjLoader
+import com.badlogic.gdx.graphics.g3d.ModelBatch
+import com.badlogic.gdx.graphics.g3d.Renderable
+import com.badlogic.gdx.graphics.g3d.Shader
 import com.badlogic.gdx.graphics.g3d.utils.ShaderProvider
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
-import com.badlogic.gdx.math.Matrix4
+import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Vector3
-import com.badlogic.gdx.utils.ScreenUtils
 import ktx.assets.DisposableContainer
 import ktx.assets.DisposableRegistry
 import ktx.graphics.use
-import kotlin.math.max
 
-class KotlinApplicationAdapter(
-    private val disposableContainer: DisposableContainer = DisposableContainer()
-) : ApplicationAdapter(), DisposableRegistry by disposableContainer {
-    private val batch: SpriteBatch = SpriteBatch().alsoRegister()
-    private val image: Texture = Texture("libgdx.png").alsoRegister()
+import net.mgsx.gltf.loaders.gltf.GLTFLoader;
+import net.mgsx.gltf.scene3d.attributes.PBRCubemapAttribute;
+import net.mgsx.gltf.scene3d.attributes.PBRTextureAttribute;
+import net.mgsx.gltf.scene3d.lights.DirectionalShadowLight
+import net.mgsx.gltf.scene3d.scene.Scene;
+import net.mgsx.gltf.scene3d.scene.SceneManager;
+import net.mgsx.gltf.scene3d.scene.SceneSkybox;
+import net.mgsx.gltf.scene3d.utils.IBLBuilder;
+import java.lang.Math.pow
+
+
+class KotlinApplicationAdapter(private val disposableContainer: DisposableContainer = DisposableContainer()): ApplicationAdapter(), DisposableRegistry by disposableContainer {
+
+    companion object {
+        var cameraDistance: Float = 100f
+
+        private const val objectsX = 3
+        private const val objectsZ = 3
+    }
+
+    private val sceneManager: SceneManager = SceneManager().alsoRegister()
+
+    private val camera: PerspectiveCamera = PerspectiveCamera(
+        60f,
+        Gdx.graphics.getWidth().toFloat(),
+        Gdx.graphics.getHeight().toFloat()
+    ).also { camera ->
+        val d = 1000f
+        camera.near = d / 1000f
+        camera.far = d * 4
+        val v = Vector3().setFromSpherical(0f, MathUtils.PI / 2 * 0.8f).scl(cameraDistance)
+        camera.position.set(v.x, v.z, v.y) // swap y and z
+        camera.update()
+    }
+
+    private val spriteBatch: SpriteBatch = SpriteBatch().alsoRegister()
     private val font: BitmapFont = BitmapFont().alsoRegister()
 
-    // 3D rendering components
-    private val camera: PerspectiveCamera =
-        PerspectiveCamera(
-            67f,
-            Gdx.graphics.getWidth().toFloat(),
-            Gdx.graphics.getHeight().toFloat()
-        ).apply {
-            val cameraDist: Float = max(objectsX, objectsX) * 1.8f
-            val cameraPos = Vector3(5f, 5f, 2f).setLength(cameraDist)
-            position.set(cameraPos)
-            lookAt(0f, 0f, 0f)
-            near = 1f
-            far = 200f
-            update()
-        }
+    // G-buffer for offscreen rendering
+    private val maskBuffer: ColorMasksBuffer<ClickedObject> =
+        ColorMasksBuffer<ClickedObject>(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
 
+    private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
+    private val modelSelection: ModelsSelection = ModelsSelection()
+    private var modelDrag: ModelGrag? = null
 
+    private var maskSize = 0.25f
 
-    private val modelBatch: ModelBatch = ModelBatch().alsoRegister()
     private val shapeRenderer: ShapeRenderer = ShapeRenderer().alsoRegister()
 
     private val maskBufferModelBatch: ModelBatch = run {
@@ -62,45 +81,93 @@ class KotlinApplicationAdapter(
         ModelBatch(fixedColorShaderProvider)
     }.alsoRegister()
 
-    private val model: Model = ObjLoader().loadModel(Gdx.files.internal("Sphere128x64.obj")).alsoRegister()
-    private val model2: Model = ObjLoader().loadModel(Gdx.files.internal("arch.obj")).alsoRegister()
-
-    private val environment: Environment = Environment().apply {
-        set(ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f))
-        add(DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f))
-    }
-    private val instances = ArrayList<ModelInstance>()
-
-    // G-buffer for offscreen rendering
-    private val maskBuffer: ColorMasksBuffer<ClickedObject> =
-        ColorMasksBuffer<ClickedObject>(Gdx.graphics.width, Gdx.graphics.height).alsoRegister()
-    private val fixedColorShader: FixedColorShader = FixedColorShader(ShaderCode.load("fixedColor")).alsoRegister()
-    private val modelSelection: ModelsSelection = ModelsSelection()
-    private var modelDrag: ModelGrag? = null
-
-    private var maskSize = 0.25f
 
     override fun create() {
+        // create scene
+
+        val sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf")).alsoRegister()
+
         for (z in 0..<objectsZ) {
             for (x in 0..<objectsX) {
-                val instance = ModelInstance(model2)
-                instance.transform.translate((x - objectsX * 0.5f) * 2f, 0f, (z - objectsZ * 0.5f) * 2f)
-                val s = 0.00015f
-                instance.transform.scale(s, s,s)
-                instance.transform.rotate(Vector3.X, -90f)
-                instances.add(instance)
+                val scene = Scene(sceneAsset.scene)
+                scene.modelInstance.transform.translate((x - (objectsX - 1) * 0.5f) * 40f, 0f, (z - (objectsZ - 1) * 0.5f) * 40f)
+                sceneManager.addScene(scene)
             }
         }
+
+        sceneManager.setCamera(camera)
+
+
+        // setup light
+        val light = DirectionalShadowLight(2048, 2048).alsoRegister()
+        light.direction.set(-1f, -2f, 1f).nor()
+        light.color.set(Color.YELLOW)
+        light.intensity = 5f
+        sceneManager.environment.add(light)
+
+
+        // setup quick IBL (image based lighting)
+        val iblBuilder: IBLBuilder = IBLBuilder.createOutdoor(light)
+        val environmentCubemap = iblBuilder.buildEnvMap(1024)
+        val diffuseCubemap = iblBuilder.buildIrradianceMap(256)
+        val specularCubemap = iblBuilder.buildRadianceMap(10)
+        iblBuilder.dispose()
+
+        // This texture is provided by the library, no need to have it in your assets.
+        val brdfLUT = Texture(Gdx.files.classpath("net/mgsx/gltf/shaders/brdfLUT.png")).alsoRegister()
+
+        sceneManager.setAmbientLight(0.3f)
+        sceneManager.environment.set(PBRTextureAttribute(PBRTextureAttribute.BRDFLUTTexture, brdfLUT))
+        sceneManager.environment.set(PBRCubemapAttribute.createSpecularEnv(specularCubemap))
+        sceneManager.environment.set(PBRCubemapAttribute.createDiffuseEnv(diffuseCubemap))
+
+        // setup skybox
+        val skybox = SceneSkybox(environmentCubemap).alsoRegister()
+        sceneManager.setSkyBox(skybox)
+    }
+
+    override fun resize(width: Int, height: Int) {
+        sceneManager.updateViewport(width.toFloat(), height.toFloat())
+
+        // Resize G-buffer to match new screen dimensions
+        maskBuffer.resize(width, height)
+
+        // Update SpriteBatch projection matrix
+        val cam2d = com.badlogic.gdx.graphics.OrthographicCamera(width.toFloat(), height.toFloat())
+        cam2d.setToOrtho(false) // Origin bottom-left, y-up
+        spriteBatch.projectionMatrix = cam2d.combined
     }
 
 
-    override fun render() {
-        // Update camera
+    private fun updateCamera(deltaTime: Float) {
+        // animate camera
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A)) {
+            camera.position.rotate(Vector3.Y, -50f * deltaTime)
+        }
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D)) {
+            camera.position.rotate(Vector3.Y, 50f * deltaTime)
+        }
+
+        val distV = 1f
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.W)) {
+            cameraDistance *= pow(2.0, (-distV * deltaTime).toDouble()).toFloat()
+        }
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.S)) {
+            cameraDistance *= pow(2.0, (distV * deltaTime).toDouble()).toFloat()
+        }
+
+
+        camera.position.setLength(cameraDistance)
+        camera.up.set(Vector3.Y)
+        camera.lookAt(Vector3.Zero)
         camera.update()
 
+    }
+
+    private fun renderAll(deltaTime: Float) {
         maskBuffer.use(color = Color.WHITE) { // Automatically handles begin/end with exception safety
-            for (model in instances) {
-                val color = maskBuffer.reserveColor(ClickedObject.Model(model))
+            for (model in sceneManager.renderableProviders) {
+                val color = maskBuffer.reserveColor(ClickedObject.Model((model as Scene).modelInstance))
                 fixedColorShader.setColor(color)
                 // ineffective, but I don't want to debug `effective` way now
                 maskBufferModelBatch.use(camera) {
@@ -119,16 +186,10 @@ class KotlinApplicationAdapter(
             Gdx.gl.glDisable(GL20.GL_DEPTH_TEST)
         }
 
-        // Step 2: Render masks texture to screen
-        // Clear the screen
-        ScreenUtils.clear(1f, 0f, 1f, 1f)
+        // render
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
-
-        modelBatch.use(camera) {
-            for (instance in instances) {
-                render(instance, environment)
-            }
-        }
+        sceneManager.update(deltaTime)
+        sceneManager.render()
 
         shapeRenderer.use(ShapeRenderer.ShapeType.Line, camera) {
             for (instance in modelSelection.selected) {
@@ -136,8 +197,7 @@ class KotlinApplicationAdapter(
             }
         }
 
-        // Render the G-buffer texture to the screen
-        batch.use {
+        spriteBatch.use {
             if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.NUM_1)) {
                 if (maskSize == 1f) {
                     maskSize = 0.25f
@@ -146,7 +206,7 @@ class KotlinApplicationAdapter(
                 }
             }
 
-            batch.draw(
+            spriteBatch.draw(
                 maskBuffer.colorTexture,
                 Gdx.graphics.width.toFloat() * (1f - maskSize), Gdx.graphics.height.toFloat() * (1f - maskSize),
                 Gdx.graphics.width.toFloat() * maskSize, Gdx.graphics.height.toFloat() * maskSize,
@@ -155,24 +215,20 @@ class KotlinApplicationAdapter(
                 false, true // Flip vertically because FrameBuffer textures are Y-flipped
             )
 
-            // Step 3: Render 2D UI elements directly to the screen
-            batch.draw(image, 140f, 210f)
-
             // Display FPS counter in the top left corner
             font.draw(
-                batch,
+                spriteBatch,
                 "FPS: ${Gdx.graphics.getFramesPerSecond()}",
                 10f,
                 Gdx.graphics.getHeight() - font.getLineHeight()
             )
-            font.draw(
-                batch,
-                "triangles count: ${16128 * objectsX * objectsZ}",
-                10f,
-                Gdx.graphics.getHeight() - font.getLineHeight() * 2
-            )
         }
+    }
 
+    override fun render() {
+        val deltaTime = Gdx.graphics.getDeltaTime()
+        updateCamera(deltaTime)
+        renderAll(deltaTime)
         handleMouseClick()
     }
 
@@ -227,29 +283,7 @@ class KotlinApplicationAdapter(
         }
     }
 
-    override fun resize(width: Int, height: Int) {
-        Gdx.gl.glViewport(0, 0, width, height)
-
-        // Update camera aspect ratio
-        camera.viewportWidth = width.toFloat()
-        camera.viewportHeight = height.toFloat()
-        camera.update()
-
-        // Resize G-buffer to match new screen dimensions
-        maskBuffer.resize(width, height)
-
-        // Update SpriteBatch projection matrix
-        val cam2d = com.badlogic.gdx.graphics.OrthographicCamera(width.toFloat(), height.toFloat())
-        cam2d.setToOrtho(false) // Origin bottom-left, y-up
-        batch.projectionMatrix = cam2d.combined
-    }
-
     override fun dispose() {
         disposableContainer.dispose()
-    }
-
-    companion object {
-        private const val objectsX = 20
-        private const val objectsZ = 20
     }
 }

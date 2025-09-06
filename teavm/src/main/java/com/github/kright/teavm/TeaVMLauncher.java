@@ -1,6 +1,5 @@
 package com.github.kright.teavm;
 
-import com.github.kright.GLTFQuickStartExample;
 import com.github.kright.Main;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplicationConfiguration;
 import com.github.xpenatan.gdx.backends.teavm.TeaApplication;
