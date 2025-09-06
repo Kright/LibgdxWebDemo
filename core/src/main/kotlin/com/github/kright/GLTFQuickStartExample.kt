@@ -27,7 +27,7 @@ import net.mgsx.gltf.scene3d.utils.IBLBuilder;
 class GLTFQuickStartExample(private val disposableContainer: DisposableContainer = DisposableContainer()): ApplicationAdapter(), DisposableRegistry by disposableContainer {
 
     private lateinit var sceneManager: SceneManager
-    private var camera: PerspectiveCamera? = null
+    private lateinit var camera: PerspectiveCamera
     private var time = 0f
 
     override fun create() {
@@ -42,8 +42,11 @@ class GLTFQuickStartExample(private val disposableContainer: DisposableContainer
         // setup camera (The BoomBox model is very small so you may need to adapt camera settings for your scene)
         camera = PerspectiveCamera(60f, Gdx.graphics.getWidth().toFloat(), Gdx.graphics.getHeight().toFloat())
         val d = 1000f
-        camera!!.near = d / 1000f
-        camera!!.far = d * 4
+        camera.near = d / 1000f
+        camera.far = d * 4
+        val v = Vector3().setFromSpherical(time * .3f, MathUtils.PI / 2 * 0.8f).scl(30f)
+        camera.position.set(v.x, v.z, v.y) // swap y and z
+
         sceneManager.setCamera(camera)
 
 
@@ -81,14 +84,19 @@ class GLTFQuickStartExample(private val disposableContainer: DisposableContainer
 
     override fun render() {
         val deltaTime = Gdx.graphics.getDeltaTime()
-        time += deltaTime
 
         // animate camera
-        val v = camera!!.position.cpy().setFromSpherical(time * .3f, MathUtils.PI / 2 * 0.8f).scl(30f)
-        camera!!.position.set(v.x, v.z, v.y)
-        camera!!.up.set(Vector3.Y)
-        camera!!.lookAt(Vector3.Zero)
-        camera!!.update()
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A)) {
+            camera.position.rotate(Vector3.Y, -50f * deltaTime)
+        }
+        if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D)) {
+            camera.position.rotate(Vector3.Y, 50f * deltaTime)
+        }
+
+        camera.position.setLength(30f)
+        camera.up.set(Vector3.Y)
+        camera.lookAt(Vector3.Zero)
+        camera.update()
 
         // render
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
