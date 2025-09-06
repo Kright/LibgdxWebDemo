@@ -24,27 +24,19 @@ import net.mgsx.gltf.scene3d.scene.SceneSkybox;
 import net.mgsx.gltf.scene3d.utils.IBLBuilder;
 
 
-class GLTFQuickStartExample(): ApplicationAdapter() {
+class GLTFQuickStartExample(private val disposableContainer: DisposableContainer = DisposableContainer()): ApplicationAdapter(), DisposableRegistry by disposableContainer {
 
     private lateinit var sceneManager: SceneManager
-    private lateinit var sceneAsset: SceneAsset
-    private var scene: Scene? = null
     private var camera: PerspectiveCamera? = null
-    private var diffuseCubemap: Cubemap? = null
-    private var environmentCubemap: Cubemap? = null
-    private var specularCubemap: Cubemap? = null
-    private var brdfLUT: Texture? = null
     private var time = 0f
-    private lateinit var skybox: SceneSkybox
-    private var light: DirectionalLightEx? = null
 
     override fun create() {
         // create scene
 
-        sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf"))
-        scene = Scene(sceneAsset.scene)
+        val sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf")).alsoRegister()
+        val scene = Scene(sceneAsset.scene)
 
-        sceneManager = SceneManager()
+        sceneManager = SceneManager().alsoRegister()
         sceneManager.addScene(scene)
 
         // setup camera (The BoomBox model is very small so you may need to adapt camera settings for your scene)
@@ -56,32 +48,30 @@ class GLTFQuickStartExample(): ApplicationAdapter() {
 
 
         // setup light
-        light = DirectionalShadowLight(2048, 2048)
-        light!!.direction.set(-1f, -2f, 1f).nor()
-        light!!.color.set(Color.YELLOW)
-        light!!.intensity = 5f
+        val light = DirectionalShadowLight(2048, 2048).alsoRegister()
+        light.direction.set(-1f, -2f, 1f).nor()
+        light.color.set(Color.YELLOW)
+        light.intensity = 5f
         sceneManager.environment.add(light)
 
 
         // setup quick IBL (image based lighting)
         val iblBuilder: IBLBuilder = IBLBuilder.createOutdoor(light)
-        environmentCubemap = iblBuilder.buildEnvMap(1024)
-        diffuseCubemap = iblBuilder.buildIrradianceMap(256)
-        specularCubemap = iblBuilder.buildRadianceMap(10)
+        val environmentCubemap = iblBuilder.buildEnvMap(1024)
+        val diffuseCubemap = iblBuilder.buildIrradianceMap(256)
+        val specularCubemap = iblBuilder.buildRadianceMap(10)
         iblBuilder.dispose()
 
-
         // This texture is provided by the library, no need to have it in your assets.
-        brdfLUT = Texture(Gdx.files.classpath("net/mgsx/gltf/shaders/brdfLUT.png"))
+        val brdfLUT = Texture(Gdx.files.classpath("net/mgsx/gltf/shaders/brdfLUT.png")).alsoRegister()
 
         sceneManager.setAmbientLight(0.3f)
         sceneManager.environment.set(PBRTextureAttribute(PBRTextureAttribute.BRDFLUTTexture, brdfLUT))
         sceneManager.environment.set(PBRCubemapAttribute.createSpecularEnv(specularCubemap))
         sceneManager.environment.set(PBRCubemapAttribute.createDiffuseEnv(diffuseCubemap))
 
-
         // setup skybox
-        skybox = SceneSkybox(environmentCubemap)
+        val skybox = SceneSkybox(environmentCubemap).alsoRegister()
         sceneManager.setSkyBox(skybox)
     }
 
@@ -107,12 +97,6 @@ class GLTFQuickStartExample(): ApplicationAdapter() {
     }
 
     override fun dispose() {
-        sceneManager.dispose()
-        sceneAsset.dispose()
-        environmentCubemap!!.dispose()
-        diffuseCubemap!!.dispose()
-        specularCubemap!!.dispose()
-        brdfLUT!!.dispose()
-        skybox.dispose()
+        disposableContainer.dispose()
     }
 }
