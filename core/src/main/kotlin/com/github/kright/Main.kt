@@ -4,7 +4,7 @@ import com.badlogic.gdx.ApplicationAdapter
 
 class Main : ApplicationAdapter() {
     private val lazyInitializedAdapter by lazy {
-        KotlinApplicationAdapter()
+        GLTFQuickStartExample()
     }
 
     override fun create() {
