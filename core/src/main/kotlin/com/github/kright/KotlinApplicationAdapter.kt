@@ -85,7 +85,8 @@ class KotlinApplicationAdapter(private val disposableContainer: DisposableContai
     override fun create() {
         // create scene
 
-        val sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf")).alsoRegister()
+//        val sceneAsset = GLTFLoader().load(Gdx.files.internal("neighbourhood_city_modular_lowpoly/scene.gltf")).alsoRegister()
+        val sceneAsset = GLTFLoader().load(Gdx.files.internal("mygltf/Model.gltf")).alsoRegister()
 
         for (z in 0..<objectsZ) {
             for (x in 0..<objectsX) {
